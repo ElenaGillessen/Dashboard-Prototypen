@@ -1,0 +1,308 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime
+
+# Klasse DataManager für Datenspeicherung und -einlesen
+class DataManager:
+    def __init__(self, studenten_filename='Studenten.csv', noten_filename='Noten.csv'):
+        self.studenten_filename = studenten_filename
+        self.noten_filename = noten_filename
+        self.students_df = None
+        self.noten_df = None
+        self.ensure_data_files_exist()
+
+# die Funktion überprüft, ob die Dateien für Studenten und Noten existieren und lädt oder erstellt diese entsprechend
+    def ensure_data_files_exist(self):
+        self.students_df = self.load_or_create_students()
+        self.noten_df = self.load_or_create_noten()
+
+# die Funktion lädt Studentendaten aus der CSV-Datei oder erstellt eine neue Datei, falls die Datei nicht existiert
+    def load_or_create_students(self):
+        try:
+            students = pd.read_csv(self.studenten_filename)
+            print(f"Datei '{self.studenten_filename}' existiert und wird erfolgreich gelesen.")
+        except FileNotFoundError:
+            print(f"Datei '{self.studenten_filename}' existiert nicht. Erstelle eine neue Datei.")
+            students_data = {
+                'matrikelnr': [12345, 67890],
+                'nachname': ['Gillessen', 'Mueller'],
+                'studiengang': ['Bachelor Angewandte KI', 'Bachelor BWL'],
+                'startdatum': ['2023-11-01', '2024-01-01'],
+                'ects': [180, 180],
+                'studiendauer_jahre': [5, 4]
+            }
+            students = pd.DataFrame(students_data)
+            students.to_csv(self.studenten_filename, index=False)
+            print(f"Neue Datei '{self.studenten_filename}' wurde erstellt und gespeichert.")
+        return students
+
+# die Funktion lädt Notendaten aus der CSV-Datei oder erstellt eine neue Datei, falls die Datei nicht existiert
+    def load_or_create_noten(self):
+        try:
+            noten = pd.read_csv(self.noten_filename)
+            print(f"Datei '{self.noten_filename}' existiert und wird erfolgreich gelesen.")
+        except FileNotFoundError:
+            print(f"Datei '{self.noten_filename}' existiert nicht. Erstelle eine neue Datei.")
+            noten_data = {
+                'matrikelnr': [12345, 67890],
+                'studienfach': ['Mathematik', 'Mathematik'],
+                'note': [2.3, 1.7],
+                'ects': [5, 5],
+            }
+            noten = pd.DataFrame(noten_data)
+            noten.to_csv(self.noten_filename, index=False)
+            print(f"Neue Datei '{self.noten_filename}' wurde erstellt und gespeichert.")
+        return noten
+
+# liest die Daten aus der Studenten-CSV und erstellt eine Liste von Student-Objekten
+    def load_students_from_csv(self):
+        studenten_liste = []
+        try:
+            df = self.students_df
+            for _, row in df.iterrows():
+                studiengang = Studiengang(
+                    name=row['studiengang'],
+                    ects=int(row['ects'])
+                )
+                student = Student(
+                    matrikelnummer=int(row['matrikelnr']),
+                    nachname=row['nachname'],
+                    studiengang=studiengang,
+                    startdatum=row['startdatum'],
+                    studiendauer=float(row['studiendauer_jahre'])
+                )
+                studenten_liste.append(student)
+        except KeyError as e:
+            print(f"Fehler: Spalte {e} nicht gefunden. Überprüfe den CSV-Header.")
+        return studenten_liste
+
+# liest die Noten-CSV und fügt die Noten den entsprechenden Studenten hinzu.
+    def load_grades_from_csv(self, studenten_liste):
+        try:
+            df = self.noten_df
+            for _, row in df.iterrows():
+                student = finde_student(int(row['matrikelnr']), studenten_liste)
+                if student:
+                    student.addStudienfach(
+                        studienfach=row['studienfach'],
+                        note=float(row['note']),
+                        ects=int(row['ects'])
+                    )
+        except KeyError as e:
+            print(f"Fehler: Spalte {e} nicht gefunden. Überprüfe den CSV-Header.")
+
+# fügt neue Noten zur Notendatei hinzu und aktualisiert das interne DataFrame
+    def save_grades_to_csv(self, student, studienfach, note, ects):
+        new_data = {
+            'matrikelnr': [student.getMatrikelnummer()],
+            'studienfach': [studienfach],
+            'note': [note],
+            'ects': [ects]
+        }
+        new_df = pd.DataFrame(new_data)
+        try:
+            new_df.to_csv(self.noten_filename, mode='a', header=False, index=False)
+            print(f"Note für {studienfach} wurde in die Datei {self.noten_filename} geschrieben.")
+            # Aktualisiere das interne DataFrame
+            self.noten_df = pd.concat([self.noten_df, new_df], ignore_index=True)
+        except Exception as e:
+            print(f"Fehler beim Schreiben der Note in die Datei: {e}")
+
+# Klasse Studiengang
+class Studiengang:
+    def __init__(self, name: str, ects: int):
+        self.name = name
+        self.ects = ects
+
+    def getName(self) -> str:
+        return self.name
+
+    def getEcts(self) -> int:
+        return self.ects
+
+# Klasse Studienfach
+class Studienfach:
+    def __init__(self, name: str, ects: int):
+        self.name = name
+        self.ects = ects
+
+    def getName(self) -> str:
+        return self.name
+
+    def getEcts(self) -> int:
+        return self.ects
+
+# Klasse Noten
+class Noten:
+    def __init__(self, note: float, studienfach: Studienfach, student: 'Student'):
+        self.note = note
+        self.studienfach = studienfach
+        self.student = student
+
+    def getNote(self) -> float:
+        return self.note
+
+    def getStudienfach(self) -> Studienfach:
+        return self.studienfach
+
+    def getStudent(self) -> 'Student':
+        return self.student
+
+# Klasse Student
+class Student:
+    def __init__(self, matrikelnummer: int, nachname: str, studiengang: Studiengang, startdatum: str, studiendauer: float):
+        self.matrikelnummer = matrikelnummer
+        self.nachname = nachname
+        self.studiengang = studiengang #Assoziation
+        self.startdatum = datetime.strptime(startdatum, '%Y-%m-%d')
+        self.studiendauer = studiendauer
+        self.noten_liste = [] #Aggregation
+
+    def getMatrikelnummer(self) -> int:
+        return self.matrikelnummer
+
+    def getNachname(self) -> str:
+        return self.nachname
+
+    def getStudiengang(self) -> Studiengang:
+        return self.studiengang
+
+    def getStartdatum(self) -> datetime:
+        return self.startdatum
+
+    def getStudiendauer(self) -> float:
+        return self.studiendauer
+
+    def addStudienfach(self, studienfach: str, note: float, ects: int):
+        fach = Studienfach(studienfach, ects)
+        self.noten_liste.append(Noten(note, fach, self))
+
+# berechnet den Durchschnitt der Noten des Studenten
+    def berechneDurchschnittsNote(self) -> float:
+        if not self.noten_liste:
+            return 0.0
+        return sum(note.getNote() for note in self.noten_liste) / len(self.noten_liste)
+
+# die Funktion berechnet den Fortschritt des Studenten in Prozent, basierend auf den erreichten und den Soll-ECTS
+    def kalkuliereFortschritt(self) -> tuple:
+        heutiges_datum = datetime.now()
+        vergangene_monate = (heutiges_datum.year - self.startdatum.year) * 12 + heutiges_datum.month - self.startdatum.month
+        soll_ects = vergangene_monate * 3  # 3 ECTS pro Monat
+        completed_ects = sum(note.getStudienfach().getEcts() for note in self.noten_liste)
+        fortschritt = (completed_ects / self.studiengang.getEcts()) * 100
+        return fortschritt, soll_ects, completed_ects
+
+# zeigt die Informationen des Studenten, einschließlich Fortschritt und Durchschnittsnote
+    def display_student_info(self):
+        print(f"Nachname: {self.nachname}")
+        print(f"Studiengang: {self.studiengang.getName()}")
+        print(f"Startdatum des Studiums: {self.startdatum.strftime('%Y-%m-%d')}")
+        print(f"Geplante Studiendauer: {self.studiendauer} Jahre")
+        print(f"Durchschnittliche Note: {self.berechneDurchschnittsNote():.2f}")
+
+        fortschritt, soll_ects, completed_ects = self.kalkuliereFortschritt()
+        print(f"\nFortschritt im Studium: {fortschritt:.2f}%")
+        print(f"Erreichte ECTS: {completed_ects}")
+        print(f"Soll-ECTS bis heute: {soll_ects:.2f}")
+
+        if completed_ects >= soll_ects:
+            print("Du bist auf dem richtigen Weg, dein Studium in der geplanten Zeit abzuschließen.")
+        else:
+            print("Du liegst hinter deinem Ziel zurück, dein Studium in der geplanten Zeit abzuschließen.")
+
+# erstellt eine Balkengrafik der Noten des Studenten
+    def show_grades_graph(self):
+        faecher = [note.getStudienfach().getName() for note in self.noten_liste]
+        noten = [note.getNote() for note in self.noten_liste]
+        plt.figure(figsize=(10, 6))
+        plt.bar(faecher, noten, color='pink')
+        plt.xlabel('Studienfächer')
+        plt.ylabel('Noten')
+        plt.title('Notenübersicht')
+        plt.ylim(0, 5)  # Notenbereich (0 bis 5)
+        plt.show()
+
+# Hilfsfunktion zum Suchen eines Studenten
+def finde_student(matrikelnummer, studenten_liste):
+    for student in studenten_liste:
+        if student.getMatrikelnummer() == matrikelnummer:
+            return student
+    return None
+
+# Hauptprogramm für die Interaktion mit dem Benutzer
+def main():
+    # Passwortschutz ohne maximale Anzahl von Versuchen
+    korrektes_passwort = "elena24"  # Hier kann man das gewünschte Passwort festlegen
+    while True:
+        eingegebenes_passwort = input("Bitte geben Sie das Passwort ein: ")
+        if eingegebenes_passwort == korrektes_passwort:
+            print("Zugang gewährt.\n")
+            break
+        else:
+            print("Falsches Passwort. Bitte versuchen Sie es erneut.")
+
+    # Initialisiere DataManager
+    data_manager = DataManager()
+
+    # Laden der Studenten aus der CSV
+    studenten_liste = data_manager.load_students_from_csv()
+
+    # Laden der Noten aus der CSV
+    data_manager.load_grades_from_csv(studenten_liste)
+
+    while True:
+        print("\nWas möchten Sie tun?")
+        print("1. Studentendaten anzeigen und Fortschritt berechnen")
+        print("2. Studienfächer und Noten einfügen")
+        print("3. Notengrafik anzeigen")
+        print("4. Beenden")
+        auswahl = input("Wählen Sie eine Option (1/2/3/4): ")
+
+        if auswahl == "1":
+            try:
+                matrikelnummer = int(input("Geben Sie die Matrikelnummer ein: "))
+                student = finde_student(matrikelnummer, studenten_liste)
+                if student:
+                    student.display_student_info()
+                else:
+                    print("Student nicht gefunden.")
+            except ValueError:
+                print("Ungültige Eingabe. Bitte geben Sie eine gültige Matrikelnummer ein.")
+
+        elif auswahl == "2":
+            try:
+                matrikelnummer = int(input("Geben Sie die Matrikelnummer ein: "))
+                student = finde_student(matrikelnummer, studenten_liste)
+                if student:
+                    fach = input("Geben Sie das Studienfach ein: ")
+                    note = float(input("Geben Sie die Note ein: "))
+                    ects = int(input("Geben Sie die ECTS ein: "))
+                    student.addStudienfach(fach, note, ects)
+                    print(f"Das Fach {fach} wurde mit Note {note} und {ects} ECTS hinzugefügt.")
+                    data_manager.save_grades_to_csv(student, fach, note, ects)
+                else:
+                    print("Student nicht gefunden.")
+            except ValueError:
+                print("Ungültige Eingabe. Bitte überprüfen Sie die eingegebenen Daten.")
+
+        elif auswahl == "3":
+            try:
+                matrikelnummer = int(input("Geben Sie die Matrikelnummer ein: "))
+                student = finde_student(matrikelnummer, studenten_liste)
+                if student:
+                    student.show_grades_graph()
+                else:
+                    print("Student nicht gefunden.")
+            except ValueError:
+                print("Ungültige Eingabe. Bitte geben Sie eine gültige Matrikelnummer ein.")
+
+        elif auswahl == "4":
+            print("Programm wird beendet.")
+            break
+
+        else:
+            print("Ungültige Auswahl. Bitte erneut versuchen.")
+
+# Start des Programms
+if __name__ == "__main__":
+    main()
